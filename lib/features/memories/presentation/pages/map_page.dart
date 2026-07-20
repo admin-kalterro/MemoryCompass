@@ -70,6 +70,15 @@ class _WorldMapState extends State<_WorldMap> {
             initialZoom: _zoom,
             minZoom: 1.5,
             maxZoom: _maxZoom,
+            // flingAnimation fires on scale-gesture-end using the finger
+            // focal-point tracking, which has a Flutter gesture recognizer
+            // bug where the reported focal point/velocity can spike when a
+            // finger lifts a beat before the other during a fast pinch.
+            // That spurious velocity was flinging the camera across the
+            // screen after a fast zoom, so momentum is disabled here.
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
+            ),
             // Without this, pinch/pan gestures can drag the camera past the
             // poles, where the Web Mercator projection produces Infinity/NaN
             // pixel coordinates and crashes TileLayer's tile range math.

@@ -115,6 +115,16 @@ class _AddMemoryForm extends StatelessWidget {
                 initialZoom: state.hasLocation ? 12 : 2.2,
                 minZoom: 1.5,
                 maxZoom: 18,
+                // flingAnimation fires on scale-gesture-end using the finger
+                // focal-point tracking, which has a Flutter gesture
+                // recognizer bug where the reported focal point/velocity can
+                // spike when a finger lifts a beat before the other during a
+                // fast pinch. That spurious velocity was flinging the camera
+                // across the screen after a fast zoom, so momentum is
+                // disabled here.
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
+                ),
                 onTap: (_, point) =>
                     controller.setLocation(point.latitude, point.longitude),
                 cameraConstraint: CameraConstraint.containCenter(
