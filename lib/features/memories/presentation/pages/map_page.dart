@@ -148,7 +148,7 @@ class _WorldMapState extends State<_WorldMap> {
                     ],
                   ),
                   child: Text(
-                    'Tap the map to add a memory here',
+                    'Tap the map to add a memory',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
