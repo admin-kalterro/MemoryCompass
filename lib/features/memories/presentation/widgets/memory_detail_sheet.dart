@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:memory_compass/core/di/providers.dart';
 import 'package:memory_compass/features/memories/domain/entities/memory_pin.dart';
 import 'package:memory_compass/features/memories/domain/usecases/update_memory_pin_details.dart';
 import 'package:memory_compass/features/memories/presentation/providers/memory_providers.dart';
@@ -23,6 +25,8 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
   late final TextEditingController _noteController;
   String? _title;
   String? _note;
+  late String _photoPath;
+  String? _pendingPhotoPath;
   bool _isEditing = false;
   bool _isSaving = false;
 
@@ -33,6 +37,7 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
     super.initState();
     _title = pin.title;
     _note = pin.note;
+    _photoPath = pin.photoPath;
     _titleController = TextEditingController(text: _title ?? '');
     _noteController = TextEditingController(text: _note ?? '');
   }
@@ -60,24 +65,51 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => FullScreenPhotoView(
-                    photoPath: pin.photoPath,
-                    heroTag: pin.id,
+              onTap: _isEditing
+                  ? _pickNewPhoto
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => FullScreenPhotoView(
+                          photoPath: _photoPath,
+                          heroTag: pin.id,
+                        ),
+                      ),
+                    ),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Hero(
+                      tag: pin.id,
+                      child: Image.file(
+                        File(_pendingPhotoPath ?? _photoPath),
+                        height: 220,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Hero(
-                  tag: pin.id,
-                  child: Image.file(
-                    File(pin.photoPath),
-                    height: 220,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                  if (_isEditing)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.photo_camera_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -182,30 +214,48 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
     setState(() {
       _titleController.text = _title ?? '';
       _noteController.text = _note ?? '';
+      _pendingPhotoPath = null;
       _isEditing = false;
     });
+  }
+
+  Future<void> _pickNewPhoto() async {
+    final picker = ref.read(imagePickerProvider);
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _pendingPhotoPath = picked.path);
   }
 
   Future<void> _saveDetails() async {
     setState(() => _isSaving = true);
     final newTitle = _blankToNull(_titleController.text);
     final newNote = _blankToNull(_noteController.text);
-    await ref
+    final newPhotoPath = _pendingPhotoPath;
+    final result = await ref
         .read(updateMemoryPinDetailsUseCaseProvider)
         .call(
           UpdateMemoryPinDetailsParams(
             id: pin.id,
             title: newTitle,
             note: newNote,
+            sourceImagePath: newPhotoPath,
           ),
         );
     if (!mounted) return;
-    setState(() {
-      _title = newTitle;
-      _note = newNote;
-      _isSaving = false;
-      _isEditing = false;
-    });
+    result.match(
+      (failure) => setState(() => _isSaving = false),
+      (updatedPin) => setState(() {
+        _title = newTitle;
+        _note = newNote;
+        _photoPath = updatedPin.photoPath;
+        _pendingPhotoPath = null;
+        _isSaving = false;
+        _isEditing = false;
+      }),
+    );
   }
 
   String? _blankToNull(String value) {

@@ -10,7 +10,12 @@ import 'package:memory_compass/features/memories/presentation/controllers/add_me
 import 'package:memory_compass/features/tags/presentation/providers/tag_providers.dart';
 
 class AddMemoryPage extends ConsumerStatefulWidget {
-  const AddMemoryPage({super.key});
+  const AddMemoryPage({super.key, this.initialLocation});
+
+  /// Location chosen before the photo was picked, e.g. by tapping a spot on
+  /// the world map. Takes priority over any GPS location found in the
+  /// photo's EXIF data, since it reflects where the user meant to pin it.
+  final LatLng? initialLocation;
 
   @override
   ConsumerState<AddMemoryPage> createState() => _AddMemoryPageState();
@@ -30,7 +35,7 @@ class _AddMemoryPageState extends ConsumerState<AddMemoryPage> {
   Future<void> _startPicking() async {
     final picked = await ref
         .read(addMemoryControllerProvider.notifier)
-        .pickPhoto();
+        .pickPhoto(initialLocation: widget.initialLocation);
     if (!mounted) return;
     if (!picked) {
       Navigator.of(context).pop();

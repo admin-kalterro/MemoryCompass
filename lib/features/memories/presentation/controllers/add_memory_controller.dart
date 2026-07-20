@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:memory_compass/core/di/providers.dart';
 import 'package:memory_compass/core/error/failures.dart';
 import 'package:memory_compass/features/memories/domain/usecases/add_memory_pin.dart';
@@ -13,7 +14,12 @@ class AddMemoryController extends StateNotifier<AddMemoryState> {
 
   /// Opens the gallery picker and, if a photo is chosen, tries to read its
   /// embedded GPS location. Returns false when the user cancels the picker.
-  Future<bool> pickPhoto() async {
+  ///
+  /// If [initialLocation] is given (the user tapped a spot on the map before
+  /// picking a photo), that location is used as-is and the photo's EXIF GPS
+  /// data is ignored entirely — only the "Add memory" button flow (no
+  /// [initialLocation]) should ever default to a photo's own coordinates.
+  Future<bool> pickPhoto({LatLng? initialLocation}) async {
     final picker = _ref.read(imagePickerProvider);
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
@@ -21,7 +27,11 @@ class AddMemoryController extends StateNotifier<AddMemoryState> {
     );
     if (picked == null) return false;
 
-    state = AddMemoryState(imagePath: picked.path);
+    state = AddMemoryState(
+      imagePath: picked.path,
+      latitude: initialLocation?.latitude,
+      longitude: initialLocation?.longitude,
+    );
 
     final result = await _ref
         .read(extractPhotoLocationUseCaseProvider)
@@ -31,12 +41,16 @@ class AddMemoryController extends StateNotifier<AddMemoryState> {
         // No usable EXIF data: the user will place the pin manually.
       },
       (metadata) {
-        state = state.copyWith(
-          takenAt: metadata.takenAt,
-          latitude: metadata.latitude,
-          longitude: metadata.longitude,
-          locationFromExif: metadata.hasLocation,
-        );
+        state = initialLocation == null
+            ? state.copyWith(
+                takenAt: metadata.takenAt,
+                latitude: metadata.latitude,
+                longitude: metadata.longitude,
+                locationFromExif: metadata.hasLocation,
+              )
+            // Keep the tapped location: don't let the photo's own EXIF GPS
+            // data override it.
+            : state.copyWith(takenAt: metadata.takenAt);
       },
     );
     return true;

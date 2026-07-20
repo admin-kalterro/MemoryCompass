@@ -106,19 +106,45 @@ class MemoryRepositoryImpl implements MemoryRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> updateMemoryPinDetails({
+  Future<Either<Failure, MemoryPin>> updateMemoryPinDetails({
     required String id,
     String? title,
     String? note,
-  }) {
-    return _updatePin(
-      id,
-      (pin) => pin.copyWith(
+    String? sourceImagePath,
+  }) async {
+    try {
+      final existingRow = await _localDataSource.findById(id);
+      if (existingRow == null) {
+        return Left(Failure.notFound('Memory $id not found'));
+      }
+      final current = existingRow.toEntity();
+
+      var photoPath = current.photoPath;
+      if (sourceImagePath != null) {
+        photoPath = await _localDataSource.savePhotoFile(sourceImagePath, id);
+        if (photoPath != current.photoPath) {
+          await _localDataSource.deletePhotoFile(current.photoPath);
+        }
+      }
+
+      final updated = current.copyWith(
         title: title,
         note: note,
+        photoPath: photoPath,
         updatedAt: DateTime.now().toUtc(),
-      ),
-    );
+        // The old Drive upload no longer matches the photo on disk, so drop
+        // it and let the sync engine treat this as a pin needing a fresh
+        // upload (it only re-uploads when driveFileId is null).
+        driveFileId: sourceImagePath != null ? null : current.driveFileId,
+        isSynced: sourceImagePath != null ? false : current.isSynced,
+      );
+      await _localDataSource.upsert(updated.toCompanion());
+      return Right(updated);
+    } on StorageException catch (e) {
+      return Left(Failure.storage(e.message));
+    } catch (e) {
+      return Left(Failure.unexpected('Failed to update memory: $e'));
+    }
   }
 
   Future<Either<Failure, Unit>> _updatePin(

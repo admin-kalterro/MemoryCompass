@@ -47,7 +47,15 @@ class MemoryLocalDataSourceImpl implements MemoryLocalDataSource {
     try {
       final memoriesDir = await _memoriesDir();
       final extension = p.extension(sourceImagePath);
-      final destination = File(p.join(memoriesDir.path, '$pinId$extension'));
+      // Suffixing with a timestamp keeps this filename distinct from any
+      // previous photo saved for this pin (e.g. when editing an existing
+      // memory's photo). Flutter's FileImage cache keys purely on the file
+      // path, so reusing the old path would keep showing the stale cached
+      // image even after the new bytes are written to disk.
+      final uniqueName = '$pinId-${DateTime.now().microsecondsSinceEpoch}';
+      final destination = File(
+        p.join(memoriesDir.path, '$uniqueName$extension'),
+      );
       await File(sourceImagePath).copy(destination.path);
       return destination.path;
     } catch (e) {

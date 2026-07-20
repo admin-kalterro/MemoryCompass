@@ -43,10 +43,11 @@ class _FakeMemoryRepository implements MemoryRepository {
   }) async => throw UnimplementedError();
 
   @override
-  Future<Either<Failure, Unit>> updateMemoryPinDetails({
+  Future<Either<Failure, MemoryPin>> updateMemoryPinDetails({
     required String id,
     String? title,
     String? note,
+    String? sourceImagePath,
   }) async => throw UnimplementedError();
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:memory_compass/core/constants/app_constants.dart';
@@ -38,49 +39,119 @@ class MapPage extends ConsumerWidget {
   }
 }
 
-class _WorldMap extends StatelessWidget {
+class _WorldMap extends StatefulWidget {
   const _WorldMap({required this.pins});
 
   final List<MemoryPin> pins;
 
   @override
+  State<_WorldMap> createState() => _WorldMapState();
+}
+
+class _WorldMapState extends State<_WorldMap> {
+  static const double _maxZoom = 18;
+
+  // Once the user is zoomed in this close, they're focused on a specific
+  // spot, so a tap on empty map is treated as "add a memory here" instead
+  // of just panning around the world.
+  static const double _addMemoryZoomThreshold = _maxZoom * 0.8;
+
+  double _zoom = 2.2;
+
+  bool get _tapToAddEnabled => _zoom >= _addMemoryZoomThreshold;
+
+  @override
   Widget build(BuildContext context) {
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: const LatLng(20, 0),
-        initialZoom: 2.2,
-        minZoom: 1.5,
-        maxZoom: 18,
-        // Without this, pinch/pan gestures can drag the camera past the
-        // poles, where the Web Mercator projection produces Infinity/NaN
-        // pixel coordinates and crashes TileLayer's tile range math.
-        cameraConstraint: CameraConstraint.contain(
-          bounds: LatLngBounds(
-            const LatLng(-85, -180),
-            const LatLng(85, 180),
-          ),
-        ),
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate: AppConstants.osmTileUrlTemplate,
-          userAgentPackageName: AppConstants.osmUserAgentPackageName,
-        ),
-        MarkerLayer(
-          markers: [
-            for (final pin in pins)
-              Marker(
-                point: LatLng(pin.latitude, pin.longitude),
-                width: 48,
-                height: 48,
-                child: MemoryMarker(
-                  pin: pin,
-                  onTap: () => _showDetail(context, pin),
-                ),
+        FlutterMap(
+          options: MapOptions(
+            initialCenter: const LatLng(20, 0),
+            initialZoom: _zoom,
+            minZoom: 1.5,
+            maxZoom: _maxZoom,
+            // Without this, pinch/pan gestures can drag the camera past the
+            // poles, where the Web Mercator projection produces Infinity/NaN
+            // pixel coordinates and crashes TileLayer's tile range math.
+            cameraConstraint: CameraConstraint.contain(
+              bounds: LatLngBounds(
+                const LatLng(-85, -180),
+                const LatLng(85, 180),
               ),
+            ),
+            onPositionChanged: (camera, hasGesture) {
+              if (camera.zoom != _zoom) setState(() => _zoom = camera.zoom);
+            },
+            onTap: (_, point) => _handleTap(context, point),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: AppConstants.osmTileUrlTemplate,
+              userAgentPackageName: AppConstants.osmUserAgentPackageName,
+            ),
+            MarkerClusterLayerWidget(
+              options: MarkerClusterLayerOptions(
+                maxClusterRadius: 45,
+                size: const Size(48, 48),
+                alignment: Alignment.center,
+                maxZoom: _maxZoom,
+                markers: [
+                  for (final pin in widget.pins)
+                    Marker(
+                      point: LatLng(pin.latitude, pin.longitude),
+                      width: 48,
+                      height: 48,
+                      child: MemoryMarker(
+                        pin: pin,
+                        onTap: () => _showDetail(context, pin),
+                      ),
+                    ),
+                ],
+                builder: (context, markers) =>
+                    _ClusterMarker(count: markers.length),
+              ),
+            ),
           ],
         ),
+        if (_tapToAddEnabled)
+          Positioned(
+            top: 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surface.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4),
+                    ],
+                  ),
+                  child: Text(
+                    'Tap the map to add a memory here',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  void _handleTap(BuildContext context, LatLng point) {
+    if (!_tapToAddEnabled) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddMemoryPage(initialLocation: point),
+      ),
     );
   }
 
@@ -89,6 +160,35 @@ class _WorldMap extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       builder: (_) => MemoryDetailSheet(pin: pin),
+    );
+  }
+}
+
+class _ClusterMarker extends StatelessWidget {
+  const _ClusterMarker({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colorScheme.primary,
+        border: Border.all(color: colorScheme.surface, width: 2),
+        boxShadow: const [
+          BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$count',
+        style: TextStyle(
+          color: colorScheme.onPrimary,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }

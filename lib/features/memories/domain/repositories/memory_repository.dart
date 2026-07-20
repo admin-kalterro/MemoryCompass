@@ -32,10 +32,14 @@ abstract class MemoryRepository {
     required double longitude,
   });
 
-  Future<Either<Failure, Unit>> updateMemoryPinDetails({
+  /// Updates title/note and, when [sourceImagePath] is given, replaces the
+  /// pin's photo with a fresh copy of that file (the old one is deleted).
+  /// Returns the updated pin so callers can read back the stored photo path.
+  Future<Either<Failure, MemoryPin>> updateMemoryPinDetails({
     required String id,
     String? title,
     String? note,
+    String? sourceImagePath,
   });
 
   Future<Either<Failure, Unit>> deleteMemoryPin(String id);
