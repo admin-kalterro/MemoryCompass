@@ -113,6 +113,8 @@ class _AddMemoryForm extends StatelessWidget {
                     ? LatLng(state.latitude!, state.longitude!)
                     : const LatLng(20, 0),
                 initialZoom: state.hasLocation ? 12 : 2.2,
+                minZoom: 1.5,
+                maxZoom: 18,
                 onTap: (_, point) =>
                     controller.setLocation(point.latitude, point.longitude),
                 cameraConstraint: CameraConstraint.contain(
