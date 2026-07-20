@@ -73,7 +73,11 @@ class _WorldMapState extends State<_WorldMap> {
             // Without this, pinch/pan gestures can drag the camera past the
             // poles, where the Web Mercator projection produces Infinity/NaN
             // pixel coordinates and crashes TileLayer's tile range math.
-            cameraConstraint: CameraConstraint.contain(
+            // containCenter (rather than contain) only clamps the center
+            // point and never rejects a move outright, so a fast zoom-out
+            // can't desync from flutter_map's gesture tracking and snap the
+            // camera into a corner.
+            cameraConstraint: CameraConstraint.containCenter(
               bounds: LatLngBounds(
                 const LatLng(-85, -180),
                 const LatLng(85, 180),
