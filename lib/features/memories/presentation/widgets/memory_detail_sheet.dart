@@ -127,7 +127,7 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
                 controller: _noteController,
                 decoration: const InputDecoration(labelText: 'Note'),
                 textCapitalization: TextCapitalization.sentences,
-                maxLines: 3,
+                maxLines: 5,
               ),
             ] else ...[
               Row(

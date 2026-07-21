@@ -179,7 +179,7 @@ class _AddMemoryForm extends StatelessWidget {
         TextField(
           controller: noteController,
           decoration: const InputDecoration(labelText: 'Note (optional)'),
-          maxLines: 3,
+          maxLines: 5,
           onChanged: controller.setNote,
         ),
         const SizedBox(height: 16),
