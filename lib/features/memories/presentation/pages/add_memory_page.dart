@@ -5,17 +5,23 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:memory_compass/core/constants/app_constants.dart';
+import 'package:memory_compass/core/widgets/compass_mark.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_controller.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_state.dart';
 import 'package:memory_compass/features/tags/presentation/providers/tag_providers.dart';
 
 class AddMemoryPage extends ConsumerStatefulWidget {
-  const AddMemoryPage({super.key, this.initialLocation});
+  const AddMemoryPage({super.key, this.initialLocation, this.initialZoom});
 
   /// Location chosen before the photo was picked, e.g. by tapping a spot on
   /// the world map. Takes priority over any GPS location found in the
   /// photo's EXIF data, since it reflects where the user meant to pin it.
   final LatLng? initialLocation;
+
+  /// Zoom level of the world map at the moment [initialLocation] was chosen,
+  /// so the mini map here opens at the same zoom instead of jumping to a
+  /// different level and disorienting the user.
+  final double? initialZoom;
 
   @override
   ConsumerState<AddMemoryPage> createState() => _AddMemoryPageState();
@@ -65,6 +71,7 @@ class _AddMemoryPageState extends ConsumerState<AddMemoryPage> {
               controller: controller,
               titleController: _titleController,
               noteController: _noteController,
+              initialZoom: widget.initialZoom,
             ),
     );
   }
@@ -76,12 +83,14 @@ class _AddMemoryForm extends StatelessWidget {
     required this.controller,
     required this.titleController,
     required this.noteController,
+    this.initialZoom,
   });
 
   final AddMemoryState state;
   final AddMemoryController controller;
   final TextEditingController titleController;
   final TextEditingController noteController;
+  final double? initialZoom;
 
   @override
   Widget build(BuildContext context) {
@@ -98,10 +107,7 @@ class _AddMemoryForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          _locationHint(state),
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        _LocationHintBadge(state: state),
         const SizedBox(height: 8),
         SizedBox(
           height: 260,
@@ -112,7 +118,7 @@ class _AddMemoryForm extends StatelessWidget {
                 initialCenter: state.hasLocation
                     ? LatLng(state.latitude!, state.longitude!)
                     : const LatLng(20, 0),
-                initialZoom: state.hasLocation ? 12 : 2.2,
+                initialZoom: state.hasLocation ? (initialZoom ?? 12) : 2.2,
                 minZoom: 1.5,
                 maxZoom: 18,
                 // flingAnimation fires on scale-gesture-end using the finger
@@ -146,11 +152,16 @@ class _AddMemoryForm extends StatelessWidget {
                         point: LatLng(state.latitude!, state.longitude!),
                         width: 40,
                         height: 40,
-                        child: Icon(
-                          Icons.location_pin,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 40,
-                        ),
+                        // The mark's tail tapers to a point near the bottom
+                        // of its bounding box, not its center — that's what
+                        // needs to land on the coordinate. flutter_map's
+                        // alignment is the widget's position relative to the
+                        // point, not the point's position within the widget,
+                        // so the sign is inverted from what you'd naively
+                        // expect: negative y pulls the widget up, landing its
+                        // bottom (the tip) on the point.
+                        alignment: const Alignment(0, -0.86),
+                        child: const CompassMark(size: 40),
                       ),
                     ],
                   ),
@@ -237,11 +248,59 @@ class _AddMemoryForm extends StatelessWidget {
       ],
     );
   }
+}
 
-  String _locationHint(AddMemoryState state) {
-    if (!state.hasLocation) return 'Tap the map to place this memory.';
-    return state.locationFromExif
-        ? 'Location found in the photo. Tap the map to adjust it.'
-        : 'Tap the map to move the pin.';
+/// A small badge describing where the pin's location came from: found in
+/// the photo's EXIF data, or waiting for / set by a tap on the map.
+class _LocationHintBadge extends StatelessWidget {
+  const _LocationHintBadge({required this.state});
+
+  final AddMemoryState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final fromExif = state.hasLocation && state.locationFromExif;
+
+    final IconData icon;
+    final String label;
+    final Color accent;
+    if (fromExif) {
+      icon = Icons.gps_fixed;
+      label = 'GPS found in photo — tap the map to adjust';
+      accent = scheme.secondary;
+    } else if (state.hasLocation) {
+      icon = Icons.touch_app_outlined;
+      label = 'Tap the map to move the pin';
+      accent = scheme.onSurfaceVariant;
+    } else {
+      icon = Icons.touch_app_outlined;
+      label = 'No GPS data found — tap the map to place this memory';
+      accent = scheme.onSurfaceVariant;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: accent),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: accent),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

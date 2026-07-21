@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:memory_compass/core/theme/app_colors.dart';
 
 /// Default color assigned to a new tag before the user picks one.
-const Color kDefaultTagColor = Colors.teal;
+const Color kDefaultTagColor = AppColors.patina;
 
 /// Curated palette a tag's color is chosen from.
 const List<Color> kTagColorPalette = [

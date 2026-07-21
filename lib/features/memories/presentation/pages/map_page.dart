@@ -4,6 +4,7 @@ import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:memory_compass/core/constants/app_constants.dart';
+import 'package:memory_compass/core/widgets/compass_mark.dart';
 import 'package:memory_compass/features/drive_sync/presentation/pages/settings_page.dart';
 import 'package:memory_compass/features/memories/domain/entities/memory_pin.dart';
 import 'package:memory_compass/features/memories/presentation/pages/add_memory_page.dart';
@@ -20,7 +21,16 @@ class MapPage extends ConsumerWidget {
     final pinsAsync = ref.watch(memoryPinsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppConstants.appName)),
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CompassMark(size: 20),
+            const SizedBox(width: 8),
+            const Text(AppConstants.appName),
+          ],
+        ),
+      ),
       drawer: const _MainDrawer(),
       body: pinsAsync.when(
         data: (pins) => _WorldMap(pins: pins),
@@ -82,16 +92,11 @@ class _WorldMapState extends State<_WorldMap> {
             // Without this, pinch/pan gestures can drag the camera past the
             // poles, where the Web Mercator projection produces Infinity/NaN
             // pixel coordinates and crashes TileLayer's tile range math.
-            // containCenter (rather than contain) only clamps the center
-            // point and never rejects a move outright, so a fast zoom-out
-            // can't desync from flutter_map's gesture tracking and snap the
-            // camera into a corner.
-            cameraConstraint: CameraConstraint.containCenter(
-              bounds: LatLngBounds(
-                const LatLng(-85, -180),
-                const LatLng(85, 180),
-              ),
-            ),
+            // containLatitude only clamps latitude and leaves longitude free,
+            // so panning can still wrap around the antimeridian using the
+            // tile layer's built-in world wrap instead of dead-ending at
+            // +/-180 degrees.
+            cameraConstraint: const CameraConstraint.containLatitude(85, -85),
             onPositionChanged: (camera, hasGesture) {
               if (camera.zoom != _zoom) setState(() => _zoom = camera.zoom);
             },
@@ -114,6 +119,15 @@ class _WorldMapState extends State<_WorldMap> {
                       point: LatLng(pin.latitude, pin.longitude),
                       width: 48,
                       height: 48,
+                      // The pin's tail tapers to a point near the bottom of
+                      // its bounding box (see _PinClipper), not its center,
+                      // so that's what needs to land on the coordinate.
+                      // flutter_map's alignment is the widget's position
+                      // relative to the point, not the point's position
+                      // within the widget, so the sign is inverted from what
+                      // you'd naively expect: negative y pulls the widget up,
+                      // landing its bottom (the tip) on the point.
+                      alignment: const Alignment(0, -0.86),
                       child: MemoryMarker(
                         pin: pin,
                         onTap: () => _showDetail(context, pin),
@@ -141,8 +155,13 @@ class _WorldMapState extends State<_WorldMap> {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.surface.withValues(alpha: 0.9),
+                    ).colorScheme.surface.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.5),
+                    ),
                     boxShadow: const [
                       BoxShadow(color: Colors.black26, blurRadius: 4),
                     ],
@@ -163,7 +182,8 @@ class _WorldMapState extends State<_WorldMap> {
     if (!_tapToAddEnabled) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AddMemoryPage(initialLocation: point),
+        builder: (_) =>
+            AddMemoryPage(initialLocation: point, initialZoom: _zoom),
       ),
     );
   }
@@ -219,9 +239,16 @@ class _MainDrawer extends StatelessWidget {
             DrawerHeader(
               child: Align(
                 alignment: Alignment.bottomLeft,
-                child: Text(
-                  AppConstants.appName,
-                  style: Theme.of(context).textTheme.titleLarge,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CompassMark(size: 32),
+                    const SizedBox(width: 10),
+                    Text(
+                      AppConstants.appName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
                 ),
               ),
             ),

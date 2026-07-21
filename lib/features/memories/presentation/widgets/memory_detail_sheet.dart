@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:memory_compass/core/di/providers.dart';
+import 'package:memory_compass/core/theme/app_theme.dart';
+import 'package:memory_compass/core/widgets/status_pill.dart';
 import 'package:memory_compass/features/memories/domain/entities/memory_pin.dart';
 import 'package:memory_compass/features/memories/domain/usecases/update_memory_pin_details.dart';
 import 'package:memory_compass/features/memories/presentation/providers/memory_providers.dart';
@@ -147,11 +149,21 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
                   ),
                 ],
               ),
-              if (pin.takenAt != null)
-                Text(
-                  DateFormat.yMMMd().add_jm().format(pin.takenAt!.toLocal()),
-                  style: textTheme.bodySmall,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (pin.takenAt != null)
+                    Text(
+                      DateFormat.yMMMd().add_jm().format(
+                        pin.takenAt!.toLocal(),
+                      ),
+                      style: textTheme.bodySmall,
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  _SyncedPill(isSynced: pin.isSynced),
+                ],
+              ),
               if ((_note ?? '').isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(_note!),
@@ -164,7 +176,7 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
             const SizedBox(height: 8),
             Text(
               '${pin.latitude.toStringAsFixed(5)}, ${pin.longitude.toStringAsFixed(5)}',
-              style: textTheme.bodySmall,
+              style: textTheme.bodySmall?.mono,
             ),
             const SizedBox(height: 16),
             if (_isEditing) ...[
@@ -287,6 +299,22 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
       await ref.read(deleteMemoryPinUseCaseProvider).call(pin.id);
       if (context.mounted) Navigator.pop(context);
     }
+  }
+}
+
+class _SyncedPill extends StatelessWidget {
+  const _SyncedPill({required this.isSynced});
+
+  final bool isSynced;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return StatusPill(
+      icon: isSynced ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+      label: isSynced ? 'Synced' : 'Not backed up',
+      color: isSynced ? scheme.secondary : scheme.onSurfaceVariant,
+    );
   }
 }
 

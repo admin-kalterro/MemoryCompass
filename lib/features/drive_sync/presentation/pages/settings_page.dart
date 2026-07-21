@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:intl/intl.dart';
 import 'package:memory_compass/core/error/failures.dart';
+import 'package:memory_compass/core/widgets/status_pill.dart';
 import 'package:memory_compass/features/drive_sync/domain/entities/sync_status.dart';
 import 'package:memory_compass/features/drive_sync/presentation/controllers/drive_sync_controller.dart';
 import 'package:memory_compass/features/drive_sync/presentation/providers/drive_sync_providers.dart';
@@ -96,23 +97,36 @@ class _SettingsBody extends StatelessWidget {
           ),
         ] else ...[
           _AccountCard(status: status),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: const Icon(Icons.folder_outlined),
-            title: const Text('Drive folder'),
-            subtitle: Text(
-              status.isFolderLinked ? 'MemoryCompass folder linked' : 'Not linked yet',
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.folder_outlined),
+                  title: const Text('Drive folder'),
+                  subtitle: Text(
+                    status.isFolderLinked
+                        ? 'MemoryCompass folder linked'
+                        : 'Not linked yet',
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.history),
+                  title: const Text('Last synced'),
+                  subtitle: Text(
+                    status.lastSyncedAt != null
+                        ? DateFormat.yMMMd().add_jm().format(
+                            status.lastSyncedAt!.toLocal(),
+                          )
+                        : 'Never',
+                  ),
+                ),
+              ],
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Last synced'),
-            subtitle: Text(
-              status.lastSyncedAt != null
-                  ? DateFormat.yMMMd().add_jm().format(status.lastSyncedAt!.toLocal())
-                  : 'Never',
-            ),
-          ),
+          const SizedBox(height: 12),
+          const _ScopeNoteCard(),
           if (status.lastErrorMessage != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -153,15 +167,55 @@ class _AccountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final account = status.account!;
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: account.photoUrl != null
-            ? NetworkImage(account.photoUrl!)
-            : null,
-        child: account.photoUrl == null ? const Icon(Icons.person) : null,
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage: account.photoUrl != null
+              ? NetworkImage(account.photoUrl!)
+              : null,
+          child: account.photoUrl == null ? const Icon(Icons.person) : null,
+        ),
+        title: Text(account.displayName ?? account.email),
+        subtitle: Text(account.email),
+        trailing: StatusPill(
+          icon: Icons.check,
+          label: 'Connected',
+          color: scheme.secondary,
+        ),
       ),
-      title: Text(account.displayName ?? account.email),
-      subtitle: Text(account.email),
+    );
+  }
+}
+
+class _ScopeNoteCard extends StatelessWidget {
+  const _ScopeNoteCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            StatusPill(
+              icon: Icons.cloud_outlined,
+              label: 'drive.file',
+              color: scheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'MemoryCompass can only see the files it creates — '
+                'nothing else in your Drive.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
