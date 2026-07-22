@@ -69,6 +69,21 @@ void main() {
     expect(result.latitude, isNull);
   });
 
+  test('reports no location when GPS tags are zeroed out (stripped by a sharing app)', () {
+    final tags = {
+      'GPS GPSLatitude': _ratiosTag([Ratio(0, 1), Ratio(0, 1), Ratio(0, 1)]),
+      'GPS GPSLatitudeRef': _stringTag('N'),
+      'GPS GPSLongitude': _ratiosTag([Ratio(0, 1), Ratio(0, 1), Ratio(0, 1)]),
+      'GPS GPSLongitudeRef': _stringTag('E'),
+    };
+
+    final result = extractor.extractFromTags(tags);
+
+    expect(result.hasLocation, isFalse);
+    expect(result.latitude, isNull);
+    expect(result.longitude, isNull);
+  });
+
   test('parses EXIF DateTimeOriginal into a DateTime', () {
     final tags = {'EXIF DateTimeOriginal': _stringTag('2024:06:21 14:03:11')};
 

@@ -1,41 +1,49 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:memory_compass/core/di/providers.dart';
 import 'package:memory_compass/core/error/failures.dart';
 import 'package:memory_compass/features/memories/domain/usecases/add_memory_pin.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_state.dart';
 import 'package:memory_compass/features/memories/presentation/providers/memory_providers.dart';
+import 'package:photo_manager/photo_manager.dart' hide LatLng;
 
 class AddMemoryController extends StateNotifier<AddMemoryState> {
   AddMemoryController(this._ref) : super(const AddMemoryState());
 
   final Ref _ref;
 
-  /// Opens the gallery picker and, if a photo is chosen, tries to read its
-  /// embedded GPS location. Returns false when the user cancels the picker.
+  /// Reads [asset]'s embedded GPS location and adopts it as the photo.
+  ///
+  /// Uses [AssetEntity.originFile] rather than a platform gallery-picker
+  /// path: on Android 10+, photos served through the content resolver have
+  /// their GPS EXIF tags redacted to (0, 0) unless the app explicitly reads
+  /// the unredacted original (which requires `ACCESS_MEDIA_LOCATION` and
+  /// `MediaStore.setRequireOriginal`, which is exactly what `originFile`
+  /// does under the hood). Reading the redacted copy instead is what used
+  /// to silently save real photos at Null Island.
   ///
   /// If [initialLocation] is given (the user tapped a spot on the map before
   /// picking a photo), that location is used as-is and the photo's EXIF GPS
   /// data is ignored entirely — only the "Add memory" button flow (no
   /// [initialLocation]) should ever default to a photo's own coordinates.
-  Future<bool> pickPhoto({LatLng? initialLocation}) async {
-    final picker = _ref.read(imagePickerProvider);
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
-    if (picked == null) return false;
+  Future<void> useSelectedAsset(
+    AssetEntity asset, {
+    LatLng? initialLocation,
+  }) async {
+    final file = await asset.originFile ?? await asset.file;
+    if (file == null) {
+      state = state.copyWith(errorMessage: 'Could not load the selected photo.');
+      return;
+    }
 
     state = AddMemoryState(
-      imagePath: picked.path,
+      imagePath: file.path,
       latitude: initialLocation?.latitude,
       longitude: initialLocation?.longitude,
     );
 
     final result = await _ref
         .read(extractPhotoLocationUseCaseProvider)
-        .call(picked.path);
+        .call(file.path);
     result.match(
       (failure) {
         // No usable EXIF data: the user will place the pin manually.
@@ -53,7 +61,6 @@ class AddMemoryController extends StateNotifier<AddMemoryState> {
             : state.copyWith(takenAt: metadata.takenAt);
       },
     );
-    return true;
   }
 
   void setLocation(double latitude, double longitude) {

@@ -10,7 +10,9 @@ import 'package:memory_compass/core/utils/map_zoom.dart';
 import 'package:memory_compass/core/widgets/compass_mark.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_controller.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_state.dart';
+import 'package:memory_compass/features/memories/presentation/pages/photo_asset_picker_page.dart';
 import 'package:memory_compass/features/tags/presentation/providers/tag_providers.dart';
+import 'package:photo_manager/photo_manager.dart' hide LatLng;
 
 class AddMemoryPage extends ConsumerStatefulWidget {
   const AddMemoryPage({super.key, this.initialLocation, this.initialZoom});
@@ -41,14 +43,18 @@ class _AddMemoryPageState extends ConsumerState<AddMemoryPage> {
   }
 
   Future<void> _startPicking() async {
-    final picked = await ref
-        .read(addMemoryControllerProvider.notifier)
-        .pickPhoto(initialLocation: widget.initialLocation);
+    final asset = await Navigator.of(context).push<AssetEntity>(
+      MaterialPageRoute(builder: (_) => const PhotoAssetPickerPage()),
+    );
     if (!mounted) return;
-    if (!picked) {
+    if (asset == null) {
       Navigator.of(context).pop();
       return;
     }
+    await ref
+        .read(addMemoryControllerProvider.notifier)
+        .useSelectedAsset(asset, initialLocation: widget.initialLocation);
+    if (!mounted) return;
     setState(() => _pickAttempted = true);
   }
 

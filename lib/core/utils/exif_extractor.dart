@@ -41,6 +41,18 @@ class ExifExtractor {
     final takenAt = _dateTimeFromTag(
       tags['EXIF DateTimeOriginal'] ?? tags['Image DateTime'],
     );
+
+    // Photo-sharing and metadata-scrubbing apps (WhatsApp, Telegram, etc.)
+    // commonly zero out the GPS tags instead of removing them, writing
+    // GPSLatitude/GPSLongitude as 0/1, 0/1, 0/1 with an arbitrary N/E ref.
+    // That parses as a "valid" (0.0, 0.0), which lands the pin on Null
+    // Island in the Gulf of Guinea instead of surfacing as missing data.
+    // A real photo taken at that exact point is practically impossible, so
+    // treat it as absent GPS data instead.
+    if (latitude == 0 && longitude == 0) {
+      return ExtractedPhotoMetadata(takenAt: takenAt);
+    }
+
     return ExtractedPhotoMetadata(
       latitude: latitude,
       longitude: longitude,
