@@ -9,6 +9,7 @@ import 'package:memory_compass/features/memories/domain/usecases/delete_memory_p
 import 'package:memory_compass/features/memories/domain/usecases/extract_photo_location.dart';
 import 'package:memory_compass/features/memories/domain/usecases/update_memory_pin_details.dart';
 import 'package:memory_compass/features/memories/domain/usecases/update_memory_pin_location.dart';
+import 'package:memory_compass/features/tags/presentation/providers/tag_providers.dart';
 
 final memoryLocalDataSourceProvider = Provider<MemoryLocalDataSource>((ref) {
   return MemoryLocalDataSourceImpl(ref.watch(appDatabaseProvider));
@@ -45,4 +46,34 @@ final extractPhotoLocationUseCaseProvider = Provider(
 /// Live list of every pin, driving the map markers.
 final memoryPinsProvider = StreamProvider<List<MemoryPin>>((ref) {
   return ref.watch(memoryRepositoryProvider).watchAllMemoryPins();
+});
+
+/// Free-text search entered in the map's search bar.
+final memorySearchQueryProvider = StateProvider<String>((ref) => '');
+
+/// [memoryPinsProvider] narrowed to pins whose title, note, or tag names
+/// match [memorySearchQueryProvider]. Falls back to the full pin list once
+/// the query is blank.
+final filteredMemoryPinsProvider = Provider<AsyncValue<List<MemoryPin>>>((
+  ref,
+) {
+  final pinsAsync = ref.watch(memoryPinsProvider);
+  final query = ref.watch(memorySearchQueryProvider).trim().toLowerCase();
+
+  if (query.isEmpty) return pinsAsync;
+
+  final tagNamesById = {
+    for (final tag in ref.watch(tagsProvider).valueOrNull ?? const [])
+      tag.id: tag.name.toLowerCase(),
+  };
+
+  return pinsAsync.whenData(
+    (pins) => pins.where((pin) {
+      if ((pin.title ?? '').toLowerCase().contains(query)) return true;
+      if ((pin.note ?? '').toLowerCase().contains(query)) return true;
+      return pin.tagIds.any(
+        (id) => tagNamesById[id]?.contains(query) ?? false,
+      );
+    }).toList(),
+  );
 });

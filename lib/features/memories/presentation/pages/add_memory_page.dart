@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:memory_compass/core/constants/app_constants.dart';
+import 'package:memory_compass/core/utils/map_zoom.dart';
 import 'package:memory_compass/core/widgets/compass_mark.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_controller.dart';
 import 'package:memory_compass/features/memories/presentation/controllers/add_memory_state.dart';
@@ -113,59 +115,68 @@ class _AddMemoryForm extends StatelessWidget {
           height: 260,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: state.hasLocation
-                    ? LatLng(state.latitude!, state.longitude!)
-                    : const LatLng(20, 0),
-                initialZoom: state.hasLocation ? (initialZoom ?? 12) : 2.2,
-                minZoom: 1.5,
-                maxZoom: 18,
-                // flingAnimation fires on scale-gesture-end using the finger
-                // focal-point tracking, which has a Flutter gesture
-                // recognizer bug where the reported focal point/velocity can
-                // spike when a finger lifts a beat before the other during a
-                // fast pinch. That spurious velocity was flinging the camera
-                // across the screen after a fast zoom, so momentum is
-                // disabled here.
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
-                ),
-                onTap: (_, point) =>
-                    controller.setLocation(point.latitude, point.longitude),
-                cameraConstraint: CameraConstraint.containCenter(
-                  bounds: LatLngBounds(
-                    const LatLng(-85, -180),
-                    const LatLng(85, 180),
-                  ),
-                ),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: AppConstants.osmTileUrlTemplate,
-                  userAgentPackageName: AppConstants.osmUserAgentPackageName,
-                ),
-                if (state.hasLocation)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: LatLng(state.latitude!, state.longitude!),
-                        width: 40,
-                        height: 40,
-                        // The mark's tail tapers to a point near the bottom
-                        // of its bounding box, not its center — that's what
-                        // needs to land on the coordinate. flutter_map's
-                        // alignment is the widget's position relative to the
-                        // point, not the point's position within the widget,
-                        // so the sign is inverted from what you'd naively
-                        // expect: negative y pulls the widget up, landing its
-                        // bottom (the tip) on the point.
-                        alignment: const Alignment(0, -0.86),
-                        child: const CompassMark(size: 40),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final minZoom = minZoomForSize(constraints.biggest);
+                final zoom = state.hasLocation ? (initialZoom ?? 12) : 2.2;
+                return FlutterMap(
+                  options: MapOptions(
+                    initialCenter: state.hasLocation
+                        ? LatLng(state.latitude!, state.longitude!)
+                        : const LatLng(20, 0),
+                    initialZoom: math.max(zoom, minZoom),
+                    minZoom: minZoom,
+                    maxZoom: 18,
+                    // flingAnimation fires on scale-gesture-end using the
+                    // finger focal-point tracking, which has a Flutter
+                    // gesture recognizer bug where the reported focal
+                    // point/velocity can spike when a finger lifts a beat
+                    // before the other during a fast pinch. That spurious
+                    // velocity was flinging the camera across the screen
+                    // after a fast zoom, so momentum is disabled here.
+                    interactionOptions: const InteractionOptions(
+                      flags:
+                          InteractiveFlag.all & ~InteractiveFlag.flingAnimation,
+                    ),
+                    onTap: (_, point) =>
+                        controller.setLocation(point.latitude, point.longitude),
+                    cameraConstraint: CameraConstraint.containCenter(
+                      bounds: LatLngBounds(
+                        const LatLng(-85, -180),
+                        const LatLng(85, 180),
                       ),
-                    ],
+                    ),
                   ),
-              ],
+                  children: [
+                    TileLayer(
+                      urlTemplate: AppConstants.osmTileUrlTemplate,
+                      userAgentPackageName:
+                          AppConstants.osmUserAgentPackageName,
+                    ),
+                    if (state.hasLocation)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(state.latitude!, state.longitude!),
+                            width: 40,
+                            height: 40,
+                            // The mark's tail tapers to a point near the
+                            // bottom of its bounding box, not its center —
+                            // that's what needs to land on the coordinate.
+                            // flutter_map's alignment is the widget's
+                            // position relative to the point, not the
+                            // point's position within the widget, so the
+                            // sign is inverted from what you'd naively
+                            // expect: negative y pulls the widget up,
+                            // landing its bottom (the tip) on the point.
+                            alignment: const Alignment(0, -0.86),
+                            child: const CompassMark(size: 40),
+                          ),
+                        ],
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
